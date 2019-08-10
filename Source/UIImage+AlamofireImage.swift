@@ -44,7 +44,11 @@ extension UIImage {
     /// - returns: An initialized `UIImage` object, or `nil` if the method failed.
     public static func af_threadSafeImage(with data: Data) -> UIImage? {
         lock.lock()
+        #if os(iOS)
         let image = UIImage.gifImageWithData(data) ?? UIImage(data: data);
+        #else
+        let image = UIImage(data: data);
+        #endif
         lock.unlock()
 
         return image
@@ -64,7 +68,11 @@ extension UIImage {
     /// - returns: An initialized `UIImage` object, or `nil` if the method failed.
     public static func af_threadSafeImage(with data: Data, scale: CGFloat) -> UIImage? {
         lock.lock()
-        let image = UIImage.gifImageWithData(data) ?? UIImage(data: data, scale: scale)
+        #if os(iOS)
+        let image = UIImage.gifImageWithData(data) ?? UIImage(data: data, scale: scale);
+        #else
+        UIImage(data: data, scale: scale)
+        #endif
         lock.unlock()
 
         return image
