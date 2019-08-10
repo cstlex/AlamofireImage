@@ -44,7 +44,7 @@ extension UIImage {
     /// - returns: An initialized `UIImage` object, or `nil` if the method failed.
     public static func af_threadSafeImage(with data: Data) -> UIImage? {
         lock.lock()
-        let image = UIImage(data: data)
+        let image = UIImage.gifImageWithData(data) ?? UIImage(data: data);
         lock.unlock()
 
         return image
@@ -64,10 +64,76 @@ extension UIImage {
     /// - returns: An initialized `UIImage` object, or `nil` if the method failed.
     public static func af_threadSafeImage(with data: Data, scale: CGFloat) -> UIImage? {
         lock.lock()
-        let image = UIImage(data: data, scale: scale)
+        let image = UIImage.gifImageWithData(data) ?? UIImage(data: data, scale: scale)
         lock.unlock()
 
         return image
+    }
+    
+    public static func gifImageWithData(_ data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil;
+        }
+        
+        let count = CGImageSourceGetCount(source);
+        
+        var animatedImage: UIImage;
+        if count <= 1 {
+            return nil;
+        } else {
+            var images: [UIImage] = [];
+            
+            var duration: TimeInterval = 0.0;
+            
+            for i in 0..<count {
+                guard let image = CGImageSourceCreateImageAtIndex(source, i, nil) else {
+                    return nil;
+                }
+                
+                duration += frameDuration(index: i, source: source);
+                
+                images.append(UIImage(cgImage: image, scale: UIScreen.main.scale, orientation: .up));
+            }
+            
+            if duration <= 0.0 {
+                duration = (1.0 / 10.0) / TimeInterval(count);
+            }
+            
+            guard let image = UIImage.animatedImage(with: images, duration: duration) else {
+                return nil;
+            }
+            animatedImage = image;
+        }
+        
+        return animatedImage;
+    }
+    
+    static func frameDuration(index: Int, source: CGImageSource) -> TimeInterval {
+        var frameDuration: TimeInterval = 0.1;
+        
+        guard let cfFrameProperties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) else {
+            return frameDuration;
+        }
+        let frameProperties = cfFrameProperties as Dictionary;
+        guard let gifProperties = frameProperties[kCGImagePropertyGIFDictionary] as? [CFString:Any] else {
+            return frameDuration;
+        }
+        
+        let delayTimeUnclampedProp = gifProperties[kCGImagePropertyGIFUnclampedDelayTime];
+        
+        if let delayTimeUnclampedProp = delayTimeUnclampedProp as? TimeInterval {
+            frameDuration = delayTimeUnclampedProp;
+        } else {
+            if let delayTimeProp = gifProperties[kCGImagePropertyGIFDelayTime] as? TimeInterval {
+                frameDuration = delayTimeProp;
+            }
+        }
+        
+        if frameDuration < 0.011 {
+            frameDuration = 0.100;
+        }
+        
+        return frameDuration;
     }
 }
 
